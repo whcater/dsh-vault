@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vault",
+    "description": "Encrypted vault for API tokens and credentials, with a sidebar panel for browsing and manual maintenance and encrypted export/import between devices."
+  }
+}

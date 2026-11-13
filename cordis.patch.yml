@@ -1,0 +1,4 @@
+- insert:
+    - id: vault
+      name: '@byteheng/dsh-vault'
+      config: {}

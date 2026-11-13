@@ -1,0 +1,6 @@
+node_modules/
+*.tmp
+*.vault
+vault.json
+.DS_Store
+npm-debug.log*
