@@ -1,5 +1,8 @@
 # 保险箱 · Vault
 
+[![npm version](https://img.shields.io/npm/v/@byteheng/dsh-vault)](https://www.npmjs.com/package/@byteheng/dsh-vault)
+[![license](https://img.shields.io/npm/l/@byteheng/dsh-vault)](LICENSE)
+
 把 GitHub / npm 等敏感凭证加密保存，不再以明文文件散落在手机上。侧边栏有独立面板，可以自己查看和手动维护；换手机时用**加密导出/导入**迁移。
 
 ## 安装
