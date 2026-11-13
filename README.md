@@ -30,13 +30,16 @@ dsh plugin add @byteheng/dsh-vault
 
 - 每条凭证用 **AES-256-GCM** 加密，密钥由**主密码**经 **scrypt** 派生。
 - 主密码**永不进入对话**：AI 工具只接受「密码文件路径」或「环境变量」，不把密码本身当参数传，因此不会写入会话日志。
-- 面板里的主密码只提交给本机已登录的接口，不落盘、不写日志；面板失焦或离开时清空。
+- 面板里的主密码只提交给本机已登录的接口，不落盘、不写日志；解锁状态只留在宿主内存。
+- 只有你主动点「记住到本机」，才会写一个 0600 的密钥文件；否则重启就回到锁定状态。
 - 保险箱文件与导出文件都是密文；没有主密码打不开。
 
 ## 界面
 
 左侧边栏多一个「保险箱」图标（在 2048 下面），点开就是面板：
 
+- **解锁**：填一次主密码，点「解锁」。解锁状态留在宿主内存，点「锁定」或重启应用就失效。
+- **记住到本机**（可选）：解锁后点它，主密码写进应用私有目录的 `vault.key`（0600），之后 AI 工具不必每次等你解锁；再点「忘记」即删除。
 - **列表**只显示名称、类型、备注、更新时间——不含内容。
 - **查看**：填主密码后原地显示内容，可复制，可收起。
 - **新增 / 编辑**：编辑时内容留空即保留原值，只改名称或备注。
@@ -52,10 +55,12 @@ config:
   path: /absolute/path/to/vault.json            # 可选，默认 $DSH_HOME/profiles/<profile>/vault/vault.json
   passphraseFile: /absolute/path/to/vault.key   # 可选，主密码文件（整份文件内容即密码）
   passphraseEnv: VAULT_PASSPHRASE               # 可选，优先用环境变量
+  keyFile: /absolute/path/to/vault.key          # 可选，面板「记住到本机」写这里；默认与 path 同目录
+  unlockTimeoutMs: 60000                        # 可选，工具等面板解锁的时长
   scryptN: 16384                                # 可选，scrypt 开销参数（2 的幂）
 ```
 
-主密码来源优先级：面板输入框 > `passphrase_file` 参数 > `passphraseEnv` 环境变量 > `passphraseFile` 文件。
+主密码来源优先级：面板输入框 > 面板解锁的内存 > `passphrase_file` 参数 > `passphraseEnv` 环境变量 > `passphraseFile` 文件 > `keyFile`。
 
 配了 `passphraseFile` 之后，面板的主密码可以留空，AI 工具也能直接用同一个文件。
 
@@ -70,6 +75,8 @@ config:
 | `vault_delete` | 删除一条凭证 |
 | `vault_export` | 导出密文到指定文件（备份 / 换机） |
 | `vault_import` | 从导出文件导入并合并（新机可直接接管） |
+
+保险箱锁着时，`vault_set` / `vault_get` / `vault_delete` / `vault_import` 不会立刻失败：它们会等你，你在面板点「解锁」后自动继续，最多等一分钟。
 
 ## 换机流程
 

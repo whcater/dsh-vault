@@ -10,6 +10,7 @@ window.__ModuleLoader__.load({
     const API = 'api/vault';
 
     const ERROR_KEYS = {
+      VAULT_LOCKED: 'errLocked',
       VAULT_WRONG_PASSPHRASE: 'errWrongPassphrase',
       VAULT_NO_PASSPHRASE: 'errNoPassphrase',
       VAULT_NO_ENTRY: 'errNoEntry',
@@ -31,9 +32,14 @@ window.__ModuleLoader__.load({
       passphraseConfigured: 'A passphrase file is configured; this field may stay empty',
       show: 'Show',
       hide: 'Hide',
+      unlock: 'Unlock',
       lock: 'Lock',
       unlocked: 'Unlocked',
-      lockedHint: 'Enter the master passphrase to reveal, edit, or delete an entry.',
+      remember: 'Remember on this device',
+      forget: 'Forget',
+      remembered: 'Saved on this device',
+      lockedHint: 'Enter the master passphrase once; it stays in memory until you lock it or restart.',
+      lockedStatus: 'Locked — AI tools wait up to a minute for you to unlock here',
       add: 'New entry',
       refresh: 'Refresh',
       loading: 'Loading…',
@@ -71,6 +77,7 @@ window.__ModuleLoader__.load({
       emptyValue: 'Enter a value for a new entry.',
       needPassphrase: 'Enter the master passphrase first.',
       errWrongPassphrase: 'Wrong master passphrase.',
+      errLocked: 'The vault is locked. Unlock it above.',
       errNoPassphrase: 'Enter the master passphrase.',
       errNoEntry: 'No such entry.',
       errEmpty: 'The vault is empty.',
@@ -88,9 +95,14 @@ window.__ModuleLoader__.load({
       passphraseConfigured: '已配置文件主密码，可留空',
       show: '显示',
       hide: '隐藏',
+      unlock: '解锁',
       lock: '锁定',
       unlocked: '已解锁',
-      lockedHint: '填入主密码后，才能查看内容、编辑或删除。',
+      remember: '记住到本机',
+      forget: '忘记',
+      remembered: '已记住到本机',
+      lockedHint: '填一次主密码即可；解锁只留在内存，锁定或重启应用就失效。',
+      lockedStatus: '已锁定 —— AI 工具会等你在这里解锁，最多一分钟',
       add: '新增条目',
       refresh: '刷新',
       loading: '加载中…',
@@ -128,6 +140,7 @@ window.__ModuleLoader__.load({
       emptyValue: '新条目需要填写内容。',
       needPassphrase: '请先填写主密码。',
       errWrongPassphrase: '主密码不正确。',
+      errLocked: '保险箱已锁定，请在上方解锁。',
       errNoPassphrase: '请填写主密码。',
       errNoEntry: '没有这个条目。',
       errEmpty: '保险箱还是空的。',
@@ -160,6 +173,7 @@ window.__ModuleLoader__.load({
         font-size: 12px; padding: 2px 8px; border-radius: 999px;
         border: 1px solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-secondary);
       }
+      .vault-statebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 12px; }
       .vault-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
       .vault-toolbar-actions { display: flex; gap: 8px; }
       .vault-count { font-size: 13px; color: var(--dsw-alias-label-secondary); }
@@ -264,6 +278,8 @@ window.__ModuleLoader__.load({
         path: null,
         exists: false,
         passphraseConfigured: false,
+        unlocked: false,
+        remembered: false,
       });
       const [hostMissing, setHostMissing] = React.useState(false);
       const [passphrase, setPassphrase] = React.useState('');
@@ -301,6 +317,8 @@ window.__ModuleLoader__.load({
             path: typeof payload.path === 'string' ? payload.path : null,
             exists: payload.exists === true,
             passphraseConfigured: payload.passphraseConfigured === true,
+            unlocked: payload.unlocked === true,
+            remembered: payload.remembered === true,
           });
         } catch {
           setHostMissing(true);
@@ -333,11 +351,12 @@ window.__ModuleLoader__.load({
       }
 
       async function post(body) {
+        const typed = passphrase.trim();
         const response = await fetch(API, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...body, passphrase }),
+          body: JSON.stringify(typed.length > 0 ? { ...body, passphrase } : body),
         });
         const payload = await readJson(response);
         if (response.status === 404 && payload === null) {
@@ -440,10 +459,77 @@ window.__ModuleLoader__.load({
         setNotice(t('copyManual'));
       }
 
+      async function unlockVault() {
+        if (passphrase.trim().length === 0) {
+          setError(t('needPassphrase'));
+          return;
+        }
+        setBusy(true);
+        setError(null);
+        try {
+          await post({ action: 'unlock' });
+          setPassphrase('');
+          setShowPassphrase(false);
+          await refresh();
+          setNotice(t('unlocked'));
+        } catch (failure) {
+          setError(failure.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function lockVault() {
+        setBusy(true);
+        setError(null);
+        try {
+          await post({ action: 'lock' });
+          setPassphrase('');
+          setShowPassphrase(false);
+          setRevealed(null);
+          setForm(null);
+          setConfirming(null);
+          await refresh();
+        } catch (failure) {
+          setError(failure.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function rememberPassphrase() {
+        setBusy(true);
+        setError(null);
+        try {
+          await post({ action: 'remember' });
+          await refresh();
+          setNotice(t('remembered'));
+        } catch (failure) {
+          setError(failure.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function forgetPassphrase() {
+        setBusy(true);
+        setError(null);
+        try {
+          await post({ action: 'forget' });
+          await refresh();
+        } catch (failure) {
+          setError(failure.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
       const entries = snapshot.entries;
       const countText = entries.length === 1 ? t('countOne') : fill(t('countMany'), { n: entries.length });
-      const unlocked = passphrase.trim().length > 0;
-      const canSubmit = unlocked || snapshot.passphraseConfigured === true;
+      const typedPassphrase = passphrase.trim().length > 0;
+      const isUnlocked = snapshot.unlocked === true;
+      const canSubmit =
+        isUnlocked || snapshot.remembered === true || typedPassphrase || snapshot.passphraseConfigured === true;
 
       const children = [];
       children.push(h('style', { key: 'style' }, CSS));
@@ -488,27 +574,55 @@ window.__ModuleLoader__.load({
             },
             showPassphrase ? t('hide') : t('show'),
           ),
-          unlocked
+          isUnlocked
             ? h(
                 'button',
-                {
-                  type: 'button',
-                  className: 'vault-btn',
-                  onClick: () => {
-                    setPassphrase('');
-                    setShowPassphrase(false);
-                    setRevealed(null);
-                    setConfirming(null);
-                  },
-                },
+                { type: 'button', className: 'vault-btn', onClick: lockVault, disabled: busy },
                 t('lock'),
               )
             : h(
-                'span',
-                { className: 'vault-hint' },
-                snapshot.passphraseConfigured ? t('passphraseConfigured') : t('passphraseHint'),
+                'button',
+                {
+                  type: 'button',
+                  className: 'vault-btn vault-btn-primary',
+                  onClick: unlockVault,
+                  disabled: busy || !typedPassphrase,
+                },
+                t('unlock'),
               ),
-          unlocked ? h('span', { className: 'vault-badge' }, t('unlocked')) : null,
+          isUnlocked ? h('span', { className: 'vault-badge' }, t('unlocked')) : null,
+        ),
+      );
+
+      children.push(
+        h(
+          'div',
+          { key: 'statebar', className: 'vault-statebar' },
+          h(
+            'span',
+            { className: 'vault-hint' },
+            snapshot.remembered
+              ? t('remembered')
+              : isUnlocked
+                ? t('lockedHint')
+                : snapshot.passphraseConfigured
+                  ? t('passphraseConfigured')
+                  : t('lockedStatus'),
+          ),
+          isUnlocked && !snapshot.remembered
+            ? h(
+                'button',
+                { type: 'button', className: 'vault-btn vault-btn-quiet', onClick: rememberPassphrase, disabled: busy },
+                t('remember'),
+              )
+            : null,
+          snapshot.remembered
+            ? h(
+                'button',
+                { type: 'button', className: 'vault-btn vault-btn-quiet', onClick: forgetPassphrase, disabled: busy },
+                t('forget'),
+              )
+            : null,
         ),
       );
 
